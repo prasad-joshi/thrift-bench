@@ -65,7 +65,7 @@ struct benchmark {
 
 vector<benchmark> bench_result;
 
-#if 0
+#if 1
 void start_benchmark(uint32_t req_size, const uint32_t queue_depth, const uint64_t nrequests) {
 	EventBase eb;
 	auto client = folly::make_unique<BenchmarkAsyncClient>(
@@ -78,21 +78,18 @@ void start_benchmark(uint32_t req_size, const uint32_t queue_depth, const uint64
 	socket->setNoDelay(true);
 	socket->setQuickAck(true);
 
-	struct benchmark bm {};
-	map <int64_t, std::chrono::high_resolution_clock::time_point> req_time;
-
-	BenchmarkData bd;
 	auto bench_start = std::chrono::high_resolution_clock::now();
-	uint64_t req_id = 1;
-	while (req_id <= nrequests) {
-		bd.set_request_id(req_id);
-		bd.set_data(string());
-		assert(bd.get_data().size() == 0);
-		bd.set_data_size(req_size);
 
-		string key("1");
-		client->sync_key_get(bd, key, bd);
-		req_id++;
+	string key("1");
+	string data(req_size, 'A');
+	for (auto i = 0; i < nrequests; i++) {
+		BenchmarkData bd{};
+//		bd.set_request_id(i);
+		bd.data = data;
+		bd.data_size = req_size;
+
+		client->sync_key_put(bd, key, bd);
+		assert(bd.data.length() == 0);
 	}
 
 	auto bench_end = std::chrono::high_resolution_clock::now();
@@ -195,7 +192,7 @@ int main(int argc, char** argv) {
 #else
 	vector<uint32_t> req_sizes{4096};
 #endif
-	vector<uint32_t> queue_depths {1, 2, 16, 32, 64, 256, 512, 1024};
+	vector<uint32_t> queue_depths {1};//, 2, 16, 32, 64, 256, 512, 1024};
 
 	const uint64_t MaxRequests = 1000000;
 	try {
@@ -209,21 +206,6 @@ int main(int argc, char** argv) {
 		printf("ERROR: %s\n", tx.what());
 		return 1;
 	}
-
-#if 0
-struct benchmark {
-	uint64_t run_time;
-	uint64_t nrequests;
-	uint32_t req_size;
-	uint32_t qdepth;
-
-	uint64_t client_latency;
-	uint64_t db_latency;
-	uint64_t dict_latency;
-	uint64_t leaf_latency;
-	uint64_t io_latency;
-};
-#endif
 
 	cout << "run time,requests,request size,queue depth,bandwidth,tot client latency, avg client latency,"
 		 << "tot DB latency, avg DB latency,tot dict latency,avg dict latency, tot leaf latency, avg leaf latency,"

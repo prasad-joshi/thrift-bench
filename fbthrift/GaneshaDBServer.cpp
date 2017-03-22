@@ -46,22 +46,31 @@ private:
 		dest.data_size = src->data_size;
 		dest.empty_data_on_resp = src->empty_data_on_resp;
 	}
+
+private:
+	size_t data_size;
+	string data;
+	void init_data(size_t size, string &ret_data) {
+		if (data_size != size) {
+			data = string(size, 'A');
+			data_size = size;
+		}
+		ret_data = data;
+	}
+
 public:
 	BenchmarkHandler() {
 		// Your initialization goes here
 	}
 
-#if 1
+#if 0
 	void async_tm_key_put(unique_ptr<HandlerCallback<unique_ptr<BenchmarkData>>> callback, unique_ptr<string> key, unique_ptr<BenchmarkData> bench) {
 		auto s = std::chrono::high_resolution_clock::now();
 
 		BenchmarkData _ret;
 		copy_benchmark_data(_ret, bench);
-		if (_ret.get_empty_data_on_resp()) {
-			string empty;
-			_ret.set_data(empty);
-			_ret.set_data_size(0);
-		}
+		_ret.data.clear();
+		_ret.data_size = 0;
 
 		auto e = std::chrono::high_resolution_clock::now();
 		auto l = std::chrono::duration_cast<std::chrono::nanoseconds>(e-s).count();
@@ -74,9 +83,8 @@ public:
 
 		BenchmarkData _ret;
 		copy_benchmark_data(_ret, bench);
-		assert(_ret.get_data().size() == 0 && _ret.get_data_size() != 0);
 
-		_ret.set_data(string(_ret.get_data_size(), 'A'));
+		init_data(_return.data_size, _return.data);
 
 		auto e = std::chrono::high_resolution_clock::now();
 		auto l = std::chrono::duration_cast<std::chrono::nanoseconds>(e-s).count();
@@ -88,12 +96,9 @@ public:
 		auto s = std::chrono::high_resolution_clock::now();
 
 		copy_benchmark_data(_ret, bd);
-		if (_ret.get_empty_data_on_resp()) {
-			string empty;
-			_ret.set_data(empty);
-			_ret.set_data_size(0);
-		}
-
+		_ret.data.clear();
+		_ret.data_size = 0;
+		
 		auto e = std::chrono::high_resolution_clock::now();
 		auto l = std::chrono::duration_cast<std::chrono::nanoseconds>(e-s).count();
 		_ret.set_db_latency(l);
@@ -102,7 +107,9 @@ public:
 	void key_get(BenchmarkData& _ret, unique_ptr<string> key, unique_ptr<BenchmarkData> bd) {
 		auto s = std::chrono::high_resolution_clock::now();
 		copy_benchmark_data(_ret, bd);
-		_ret.set_data(string(_ret.get_data_size(), 'A'));
+
+		init_data(_ret.data_size, _ret.data);
+
 		auto e = std::chrono::high_resolution_clock::now();
 		auto l = std::chrono::duration_cast<std::chrono::nanoseconds>(e-s).count();
 		_ret.set_db_latency(l);
