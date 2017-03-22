@@ -8,6 +8,7 @@ We did 3 additional experiments to measure latency (single threaded, 4k) to cros
 - folly async sockets without any framework. If we get good numbers from this we know that the hardware and the OS stack is not the problem.
 - wangle, without the thrift
 - thrift:golang (Not committed in this repository)
+- apache thrift
 
 All the experiments were carried on the same machine.
 
@@ -27,6 +28,7 @@ We did similar experiment with both client and servers running as separate proce
 | folly async sockets |	21 |
 | wangle |	100 |
 | fbthrift |	368 |
+| apache thrift | 31 |
 
 We suspect something is wrong in the thrift part of fbthrift, the wangle part seems to be fine. Our suspicion is that it is either a compilation or tuneable which is set incorrectly.
 
