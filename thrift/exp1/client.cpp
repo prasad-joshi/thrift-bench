@@ -21,7 +21,7 @@ using namespace google;
 
 DEFINE_int32(server_port, 9090, "Server Port");
 DEFINE_string(server_ip, "", "Server IP");
-
+write
 int main(int argc, char *argv[]) {
 	google::ParseCommandLineFlags(&argc, &argv, true);
 
