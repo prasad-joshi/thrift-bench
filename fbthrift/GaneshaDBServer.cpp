@@ -63,7 +63,7 @@ public:
 		// Your initialization goes here
 	}
 
-#if 0
+#if 1
 	void async_tm_key_put(unique_ptr<HandlerCallback<unique_ptr<BenchmarkData>>> callback, unique_ptr<string> key, unique_ptr<BenchmarkData> bench) {
 		auto s = std::chrono::high_resolution_clock::now();
 
@@ -84,7 +84,7 @@ public:
 		BenchmarkData _ret;
 		copy_benchmark_data(_ret, bench);
 
-		init_data(_return.data_size, _return.data);
+		init_data(_ret.data_size, _ret.data);
 
 		auto e = std::chrono::high_resolution_clock::now();
 		auto l = std::chrono::duration_cast<std::chrono::nanoseconds>(e-s).count();
