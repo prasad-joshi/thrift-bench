@@ -65,13 +65,13 @@ struct benchmark {
 
 vector<benchmark> bench_result;
 
-#if 1
+#if 0
 void start_benchmark(uint32_t req_size, const uint32_t queue_depth, const uint64_t nrequests) {
 	EventBase eb;
 	auto client = folly::make_unique<BenchmarkAsyncClient>(
 			HeaderClientChannel::newChannel(
 				async::TAsyncSocket::newSocket(
-					&eb, {"127.0.0.1", 9090})));
+					&eb, {FLAGS_server_ip, FLAGS_server_port})));
 
 	auto chan = dynamic_cast<apache::thrift::HeaderClientChannel*>(client->getHeaderChannel());
 	auto socket = dynamic_cast<async::TAsyncSocket*>(chan->getTransport());
@@ -168,13 +168,14 @@ void start_benchmark(uint32_t req_size, const uint32_t queue_depth, const uint64
 		}
 	}
 
+	chan->closeNow();
+
 	auto bench_end  = std::chrono::high_resolution_clock::now();
 	bm.run_time     = std::chrono::duration_cast<std::chrono::nanoseconds>(bench_end - bench_start).count();
 	bm.nrequests    = nrequests;
 	bm.req_size     = req_size;
 	bm.qdepth       = queue_depth;
 
-	chan->closeNow();
 
 	// cout << "latency : " << bm.run_time / nrequests << endl;
 	bench_result.push_back(bm);
@@ -192,14 +193,32 @@ int main(int argc, char** argv) {
 #else
 	vector<uint32_t> req_sizes{4096};
 #endif
-	vector<uint32_t> queue_depths {1};//, 2, 16, 32, 64, 256, 512, 1024};
+	vector<uint32_t> queue_depths {1, 2, 16, 32, 64, 256, 512, 1024};
+	std::vector<uint32_t> nthreads{1, 10, 100, 1000};
+	const uint64_t MaxRequests = 100000;
 
-	const uint64_t MaxRequests = 1000000;
+	cout << "#Threads, ReqSize, QD, Requests/Thread, Avg Latency, #TotRequest, TotAvgLatency\n";
 	try {
-		for (auto qd : queue_depths) {
-			for (auto sz: req_sizes) {
-				cout << "Using queue_depths " << qd << " and req_size " << sz << endl;
-				start_benchmark(sz, qd, MaxRequests);
+		for (auto nt : nthreads) {
+			for (auto qd : queue_depths) {
+				for (auto sz: req_sizes) {
+					std::thread *tp = new std::thread[nt];
+
+					auto s = std::chrono::high_resolution_clock::now();
+					for (auto i = 0; i < nt; i++) {
+						tp[i] = std::thread(start_benchmark, sz, qd, MaxRequests);
+					}
+
+					for (auto i = 0; i < nt; i++) {
+						tp[i].join();
+					}
+
+					auto e = std::chrono::high_resolution_clock::now();
+					auto d = std::chrono::duration_cast<std::chrono::nanoseconds>(e-s).count();
+
+					cout << nt << "," << sz << "," << qd << "," << MaxRequests << "," << d/MaxRequests << ","
+						<< MaxRequests*nt << "," << d/(MaxRequests*nt) << endl;
+				}
 			}
 		}
 	} catch (TException &tx) {
@@ -207,6 +226,7 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
+#if 0
 	cout << "run time,requests,request size,queue depth,bandwidth,tot client latency, avg client latency,"
 		 << "tot DB latency, avg DB latency,tot dict latency,avg dict latency, tot leaf latency, avg leaf latency,"
 		 << "tot io latency, avg io latency" << endl;
@@ -234,5 +254,6 @@ int main(int argc, char** argv) {
 				<< dbl << "," << adbl << "," << dictl << "," << adictl << "," << leafl << "," << aleafl << ","
 				<< iol << "," << aiol << endl;
 	}
+#endif
 	return 0;
 }

@@ -11,19 +11,23 @@ else
 CPPFLAGS := -std=c++14 -O2
 endif
 
-all: $(OBJS)
+all: gencpp2 $(OBJS)
+
+gencpp2:
+	make -C gen-cpp2/
 
 thrift:
 	python -m thrift_compiler.main --gen cpp2 benchmark.thrift 
 
-GaneshaDBServer: GaneshaDBServer.cpp gen-cpp2/Benchmark.cpp gen-cpp2/benchmark_constants.cpp \
-			gen-cpp2/benchmark_types.cpp gen-cpp2/benchmark_data.cpp
+GaneshaDBServer: GaneshaDBServer.cpp  gen-cpp2/libbenchmark.a
 	g++ $(CPPFLAGS) -o $@ $^ $(INC) $(LIBS)
 
-client: client.cpp gen-cpp2/Benchmark.cpp gen-cpp2/benchmark_constants.cpp \
-		gen-cpp2/benchmark_types.cpp gen-cpp2/benchmark_data.cpp \
-	       	gen-cpp2/Benchmark_client.cpp
+client: client.cpp  gen-cpp2/libbenchmark.a
 	g++ $(CPPFLAGS) -o $@ $^ $(INC) $(LIBS)
 
 clean:
 	rm -f $(OBJS)
+	make -C gen-cpp2/ clean
+
+dist-clean: clean
+	make -C gen-cpp2/ dist-clean
