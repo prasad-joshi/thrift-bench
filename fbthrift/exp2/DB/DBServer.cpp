@@ -122,6 +122,8 @@ public:
 			/* invoke operation on leaf */
 			LeafBenchmarkData lbd;
 			lbd.set_request_id(bench1->get_request_id());
+			lbd.set_data(bench1->get_data());
+			ldb.set_data_size(bench1->get_data_size());
 			auto f = clientp->future_key_put(*k, lbd);
 			f.then([cb = std::move(cb1), bench = std::move(bench1), s]
 						(const LeafBenchmarkData &result) mutable {
