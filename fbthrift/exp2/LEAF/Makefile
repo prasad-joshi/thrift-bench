@@ -4,7 +4,7 @@ LEAFSRCDIR = $(LEAFDIR)/gen-cpp2
 INC  := -I. -Igen-cpp2/ -I$(LEAFDIR)
 LIBS := -lboost_system -lpthread -lglog -lfolly -lthrift -lthriftcpp2 -lthriftprotocol -lzstd -lcrypto -lgflags
 
-DEBUG=1
+#DEBUG=1
 ifdef DEBUG
 CPPFLAGS := -std=c++14 -ggdb -g -O0
 else

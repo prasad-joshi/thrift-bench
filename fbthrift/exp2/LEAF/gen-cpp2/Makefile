@@ -1,7 +1,7 @@
 SOURCES := LeafBenchmark.cpp LeafBenchmark_client.cpp leaf_benchmark_constants.cpp leaf_benchmark_data.cpp leaf_benchmark_types.cpp
 OBJECTS=$(SOURCES:.cpp=.o)
 
-DEBUG=1
+#DEBUG=1
 ifdef DEBUG
 CPPFLAGS := -std=c++14 -ggdb -g -O0
 else

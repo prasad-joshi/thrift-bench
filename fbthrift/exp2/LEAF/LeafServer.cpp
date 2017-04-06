@@ -54,7 +54,7 @@ private:
 public:
 	LeafHandler() {
 		// Your initialization goes here
-		threadManager_ = ThreadManager::newSimpleThreadManager(4, 0, true, 0);
+		threadManager_ = ThreadManager::newSimpleThreadManager(12, 0, true, 0);
 		assert(threadManager_);
 		auto tf = std::make_shared<PosixThreadFactory>();
 		threadManager_->threadFactory(tf);

@@ -1,7 +1,7 @@
 SOURCES := DBBenchmark.cpp DBBenchmark_client.cpp db_benchmark_constants.cpp db_benchmark_data.cpp db_benchmark_types.cpp
 OBJECTS=$(SOURCES:.cpp=.o)
 
-DEBUG=1
+#DEBUG=1
 ifdef DEBUG
 CPPFLAGS := -std=c++14 -ggdb -g -O0
 else
