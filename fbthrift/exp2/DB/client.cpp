@@ -145,11 +145,12 @@ int main(int argc, char** argv) {
 #endif
 	vector<uint32_t> queue_depths {1, 2, 16, 32, 64, 256, 512, 1024};
 	std::vector<uint32_t> nthreads{1, 10, 100, 1000};
-	const uint64_t MaxRequests = 100000;
+	const uint64_t MaxRequests = 1000;
 
 //	cout << "#Threads, ReqSize, QD, Requests/Thread, Avg Latency, #TotRequest, TotAvgLatency\n";
-	cout << "#Threads, ReqSize, QD, Requests/Thread, TotRunTime, TotNRequsts, TotAvgLatency, "
-	        "ClientLat, DBLat, LeafLat, IOLat, CPUConsumed\n";
+	cout << "#Threads, ReqSize, QD, Requests/Thread, TotRunTime, TotNRequsts, "
+	        "ClientLat, DBLat, LeafLat, IOLat, CPUConsumed, "
+	        "Client-DB Latency, DB-Leaf Latency, Leaf - IO - CPU \n";
 	try {
 		for (auto nt : nthreads) {
 			for (auto qd : queue_depths) {
@@ -194,9 +195,11 @@ int main(int argc, char** argv) {
 					cpu_consumed /= nr;
 
 					cout << nt << "," << sz << "," << qd << "," << MaxRequests << ","
-					     << total_run_time << "," << nr << ","  << total_run_time / nr
-					     << "," << client_latency << "," << db_latency << "," << leaf_latency
-					     << "," << io_latency << "," << cpu_consumed << endl;
+					     << total_run_time << "," << nr << ","
+					     << client_latency << "," << db_latency << "," << leaf_latency
+					     << "," << io_latency << "," << cpu_consumed << ","
+					     << client_latency - db_latency << "," << db_latency - leaf_latency
+					     << "," << leaf_latency - io_latency - cpu_consumed <<  endl;
 					/*
 					cout << nt << "," << sz << "," << qd << "," << MaxRequests << "," << d/MaxRequests << ","
 						<< MaxRequests*nt << "," << d/(MaxRequests*nt) << endl;
@@ -209,35 +212,5 @@ int main(int argc, char** argv) {
 		printf("ERROR: %s\n", tx.what());
 		return 1;
 	}
-
-#if 0
-	cout << "run time,requests,request size,queue depth,bandwidth,tot client latency, avg client latency,"
-		 << "tot DB latency, avg DB latency,tot dict latency,avg dict latency, tot leaf latency, avg leaf latency,"
-		 << "tot io latency, avg io latency" << endl;
-	for (auto &br : bench_result) {
-		auto nr     = br.nrequests;
-		assert(nr);
-		auto rs     = br.req_size;
-		auto cl     = br.client_latency;
-		auto acl    = br.client_latency / nr;
-		auto dbl    = br.db_latency;
-		auto adbl   = dbl / nr;
-		auto dictl  = br.dict_latency;
-		auto adictl = dictl / nr;
-		auto leafl  = br.leaf_latency;
-		auto aleafl = leafl / nr;
-		auto iol    = br.io_latency;
-		auto aiol   = iol / nr;
-
-		auto secs   = NANOSEC_TO_SEC(br.run_time);
-		uint64_t bw = 0;
-		if (secs != 0) {
-			bw = nr * rs / secs;
-		}
-		cout << br.run_time << "," << nr << "," << rs << "," << br.qdepth << "," << bw << "," << cl << "," << acl << ","
-				<< dbl << "," << adbl << "," << dictl << "," << adictl << "," << leafl << "," << aleafl << ","
-				<< iol << "," << aiol << endl;
-	}
-#endif
 	return 0;
 }
