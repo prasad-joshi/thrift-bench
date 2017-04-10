@@ -147,8 +147,7 @@ int main(int argc, char** argv) {
 
 //	cout << "#Threads, ReqSize, QD, Requests/Thread, Avg Latency, #TotRequest, TotAvgLatency\n";
 	cout << "#Threads, ReqSize, QD, Requests/Thread, TotRunTime, TotNRequsts, "
-	        "ClientLat, DBLat, LeafLat, IOLat, CPUConsumed, "
-	        "Client-DB Latency, DB-Leaf Latency, Leaf - IO - CPU \n";
+	        "DBLat, LeafLat, IOLat, CPUConsumed, DB-Leaf Latency, Leaf - IO - CPU \n";
 	try {
 		for (auto nt : nthreads) {
 			for (auto qd : queue_depths) {
@@ -169,8 +168,6 @@ int main(int argc, char** argv) {
 					auto e = std::chrono::high_resolution_clock::now();
 					auto total_run_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e-s).count();
 
-					uint64_t run_time{0};
-					uint64_t client_latency{0};
 					uint64_t db_latency{0};
 					uint64_t leaf_latency{0};
 					uint64_t io_latency{0};
@@ -184,18 +181,16 @@ int main(int argc, char** argv) {
 					}
 
 					auto nr = MaxRequests * nt;
-					client_latency /= nr;
 					db_latency /= nr;
 					leaf_latency /= nr;
 					io_latency /= nr;
 					cpu_consumed /= nr;
 
 					cout << nt << "," << sz << "," << qd << "," << MaxRequests << ","
-					     << total_run_time << "," << nr << ","
-					     << client_latency << "," << db_latency << "," << leaf_latency
-					     << "," << io_latency << "," << cpu_consumed << ","
-					     << client_latency - db_latency << "," << db_latency - leaf_latency
-					     << "," << leaf_latency - io_latency - cpu_consumed <<  endl;
+					     << total_run_time << "," << nr << ","  << db_latency << ","
+					     << leaf_latency << "," << io_latency << "," << cpu_consumed << ","
+					     << db_latency - leaf_latency << ","
+					     << leaf_latency - io_latency - cpu_consumed <<  endl;
 					/*
 					cout << nt << "," << sz << "," << qd << "," << MaxRequests << "," << d/MaxRequests << ","
 						<< MaxRequests*nt << "," << d/(MaxRequests*nt) << endl;
