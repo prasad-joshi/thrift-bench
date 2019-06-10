@@ -167,51 +167,43 @@ auto CreateAsyncRpcClient(folly::EventBase* basep) {
 	);
 }
 
-void BenchmarkEcho(StatsCollector* statsp, ClientId client_id) {
+template <typename Lambda>
+void Benchmark(StatsCollector* statsp,
+			ClientId client_id,
+			folly::EventBase* basep ,
+			Lambda send_func) {
 	const uint64_t kQueueDepth = FLAGS_queue_depth;
 	const uint64_t kBlockSize = FLAGS_block_size;
 	const uint64_t kRequests = FLAGS_requests;
 	const bool kUnlimited = FLAGS_unlimited;
 	const uint64_t kIopsRateLimit = FLAGS_iops_rate_limit;
 
-	folly::EventBase eb;
-	auto client = CreateAsyncRpcClient(&eb);
-	auto chan = dynamic_cast<HeaderClientChannel*>(client->getHeaderChannel());
-
-	statsp->ClientAdd(client_id);
-
 	std::string data(kBlockSize, 'A');
 	uint64_t current_depth = 1;
 	uint64_t to_send = current_depth;
 	auto iops_timer = Clock::now();
 	auto dump_timer_start = iops_timer;
-	std::atomic<uint64_t> ios_in_last_second{0};
-	std::atomic<uint64_t> req_id{0};
-	std::atomic<uint64_t> req_sent{0};
-	std::atomic<uint64_t> req_complete{0};
-	std::atomic<uint64_t> req_out{0};
+	uint64_t ios_in_last_second{0};
+	uint64_t req_id{0};
+	uint64_t req_sent{0};
+	uint64_t req_complete{0};
+	uint64_t req_out{0};
 	while (req_complete < kRequests or kUnlimited) {
 		for (auto i = 0u; i < to_send; ++i) {
-			client->future_Echo(++req_id,
-				std::make_unique<folly::IOBuf>(
-					IOBuf::WRAP_BUFFER, data.data(), data.size()
-				)
-			).then([&] (const EchoResult& result) mutable {
-				assert(result.data->computeChainDataLength() == kBlockSize);
+			send_func(++req_id, data)
+			.then([&] (int rc) mutable {
 				++req_complete;
 				--req_out;
 			});
-			++req_out;
-			++req_sent;
 		}
 		ios_in_last_second += to_send;
 
-		eb.loopOnce();
+		basep->loopOnce();
 
 		auto e = Clock::now();
 		auto c = std::chrono::duration_cast<std::chrono::seconds>(e - iops_timer).count();
 		if (c >= 1) {
-			auto new_ios = ios_in_last_second.load();
+			auto new_ios = ios_in_last_second;
 			statsp->Update(client_id, current_depth, new_ios, new_ios);
 
 			if (ios_in_last_second < kIopsRateLimit) {
@@ -224,7 +216,7 @@ void BenchmarkEcho(StatsCollector* statsp, ClientId client_id) {
 			} else if (current_depth == 0) {
 				current_depth = 1;
 			}
-			ios_in_last_second.store(0);
+			ios_in_last_second = 0;
 			iops_timer = e;
 		}
 
@@ -237,115 +229,68 @@ void BenchmarkEcho(StatsCollector* statsp, ClientId client_id) {
 			to_send = 0;
 		}
 	}
-
-	chan->closeNow();
 }
 
-void BenchmarkSend() {
-	const uint64_t kQueueDepth = FLAGS_queue_depth;
-	const uint64_t kBlockSize = FLAGS_block_size;
-	const uint64_t kRequests = FLAGS_requests;
-
+void BenchmarkEcho(StatsCollector* statsp, ClientId client_id) {
 	folly::EventBase eb;
 	auto client = CreateAsyncRpcClient(&eb);
 	auto chan = dynamic_cast<HeaderClientChannel*>(client->getHeaderChannel());
 
-	auto s = std::chrono::high_resolution_clock::now();
+	statsp->ClientAdd(client_id);
 
-	std::string data(kBlockSize, 'A');
-	uint64_t to_send = kQueueDepth;
-	std::atomic<uint64_t> req_id{0};
-	std::atomic<uint64_t> req_sent{0};
-	std::atomic<uint64_t> req_complete{0};
-	std::atomic<uint64_t> req_out{0};
-	while (req_complete < kRequests) {
-		for (auto i = 0u; i < to_send; ++i) {
-			client->future_Send(++req_id,
-				std::make_unique<folly::IOBuf>(
-					IOBuf::WRAP_BUFFER, data.data(), data.size()
-				)
-			).then([&] (const SendResult& result) mutable {
-				++req_complete;
-				--req_out;
-			});
-			++req_out;
-			++req_sent;
-			//std::cout << "Sent " << req_id << std::endl;
-		}
+	auto func = [clientp = client.get()]
+			(uint64_t req_id, const std::string& data) mutable {
+		auto buf = std::make_unique<folly::IOBuf>(IOBuf::WRAP_BUFFER,
+			data.data(), data.size());
+		return clientp->future_Echo(req_id, buf)
+		.then([buf = std::move(buf)] (auto rc) mutable {
+			return 0;
+		});
+	};
 
-		eb.loopOnce();
-
-		to_send = kQueueDepth - req_out;
-		if (req_sent > kRequests) {
-			to_send = 0;
-		}
-	}
-
-	auto e = std::chrono::high_resolution_clock::now();
-	auto time_nsec = std::chrono::duration_cast<std::chrono::nanoseconds>(e-s).count();
-	auto time = time_nsec / 1000.0 / 1000.0 / 1000.0;
-	double bw = ((double) kRequests * kBlockSize) / time;
-	std::cout << "==== SEND Benchmark ====" << std::endl
-		<< "This benchmark sends block size worth of data (doesn't receive), "
-		<< "while maintaining queue_depth" << std::endl
-		<< "Queue Depth " << kQueueDepth << std::endl
-		<< "Block Size " << kBlockSize << std::endl
-		<< "Number of requests " << kRequests << std::endl
-		<< "Run Time " << time << std::endl
-		<< "Total data sent " << kRequests * kBlockSize << std::endl
-		<< "BW in MB "  << bw / 1024 / 1024 << std::endl
-		<< "IOPS " << kRequests / time << std::endl;
+	Benchmark(statsp, client_id, &eb, func);
 
 	chan->closeNow();
 }
 
-void BenchmarkSendNoData() {
-	const uint64_t kQueueDepth = FLAGS_queue_depth;
-	const uint64_t kBlockSize = FLAGS_block_size;
-	const uint64_t kRequests = FLAGS_requests;
-
+void BenchmarkSend(StatsCollector* statsp, ClientId client_id) {
 	folly::EventBase eb;
 	auto client = CreateAsyncRpcClient(&eb);
 	auto chan = dynamic_cast<HeaderClientChannel*>(client->getHeaderChannel());
 
-	auto s = std::chrono::high_resolution_clock::now();
+	statsp->ClientAdd(client_id);
 
-	uint64_t to_send = kQueueDepth;
-	std::atomic<uint64_t> req_id{0};
-	std::atomic<uint64_t> req_sent{0};
-	std::atomic<uint64_t> req_complete{0};
-	std::atomic<uint64_t> req_out{0};
-	while (req_complete < kRequests) {
-		for (auto i = 0u; i < to_send; ++i) {
-			client->future_SendNoData(++req_id)
-			.then([&] (const SendResult& result) mutable {
-				++req_complete;
-				--req_out;
-			});
-			++req_out;
-			++req_sent;
-			//std::cout << "Sent " << req_id << std::endl;
-		}
+	auto func = [clientp = client.get()]
+			(uint64_t req_id, const std::string& data) mutable {
+		auto buf = std::make_unique<folly::IOBuf>(IOBuf::WRAP_BUFFER,
+			data.data(), data.size());
+		return clientp->future_Send(req_id, buf)
+		.then([buf = std::move(buf)] (auto rc) mutable {
+			return 0;
+		});
+	};
 
-		eb.loopOnce();
+	Benchmark(statsp, client_id, &eb, func);
 
-		to_send = kQueueDepth - req_out;
-		if (req_sent > kRequests) {
-			to_send = 0;
-		}
-	}
+	chan->closeNow();
+}
 
-	auto e = std::chrono::high_resolution_clock::now();
-	auto time_nsec = std::chrono::duration_cast<std::chrono::nanoseconds>(e-s).count();
-	auto time = time_nsec / 1000.0 / 1000.0 / 1000.0;
-	double bw = ((double) kRequests * kBlockSize) / time;
-	std::cout << "==== SEND Benchmark ====" << std::endl
-		<< "This benchmark just invokes RPC method on server without sending "
-		<< "data while maintaining queue_depth" << std::endl
-		<< "Queue Depth " << kQueueDepth << std::endl
-		<< "Number of requests " << kRequests << std::endl
-		<< "Run Time " << time << std::endl
-		<< "IOPS " << kRequests / time << std::endl;
+void BenchmarkSendNoData(StatsCollector* statsp, ClientId client_id) {
+	folly::EventBase eb;
+	auto client = CreateAsyncRpcClient(&eb);
+	auto chan = dynamic_cast<HeaderClientChannel*>(client->getHeaderChannel());
+
+	statsp->ClientAdd(client_id);
+
+	auto func = [clientp = client.get()]
+			(uint64_t req_id, const std::string& data) mutable {
+		return clientp->future_SendNoData(req_id)
+		.then([] (auto rc) mutable {
+			return 0;
+		});
+	};
+
+	Benchmark(statsp, client_id, &eb, func);
 
 	chan->closeNow();
 }
@@ -396,7 +341,7 @@ int main(int argc, char* argv[]) {
 			} else if (cmd == kAddClient) {
 				auto id = ++client_id;
 				auto thread = std::thread([&, id] () mutable {
-					BenchmarkEcho(&stats, id);
+					BenchmarkSendNoData(&stats, id);
 				});
 
 				clients.insert(std::make_pair(id, std::move(thread)));
