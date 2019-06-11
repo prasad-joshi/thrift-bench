@@ -15,6 +15,8 @@
 #include <folly/io/async/EventBase.h>
 #include <thrift/lib/cpp/async/TAsyncSocket.h>
 #include <thrift/lib/cpp2/async/HeaderClientChannel.h>
+#include <thrift/lib/cpp2/async/HeaderChannelTrait.h>
+#include <thrift/lib/cpp/protocol/TProtocolTypes.h>
 
 using namespace apache::thrift;
 using namespace apache::thrift::async;
@@ -160,11 +162,26 @@ int Connect() {
 auto CreateAsyncRpcClient(folly::EventBase* basep) {
 	int fd = Connect();
 	assert(fd >= 0);
-	return std::make_unique<StorageRpcAsyncClient>(
-		HeaderClientChannel::newChannel(
-			async::TAsyncSocket::newSocket(basep, fd)
-		)
-	);
+
+	auto async_socket = async::TAsyncSocket::newSocket(basep, fd);
+	if (not async_socket->setSendBufSize(kBufferSize)) {
+		LOG(ERROR) << "Send buffer size set";
+	}
+	if (not async_socket->setRecvBufSize(kBufferSize)) {
+		LOG(ERROR) << "Receive buffer size set";
+	}
+	if (not async_socket->setNoDelay(true)) {
+		LOG(ERROR) << "No Delay Set";
+	}
+	if (not async_socket->setZeroCopy(true)) {
+		LOG(ERROR) << "Zero Copy Enabled";
+	}
+
+	auto channel = HeaderClientChannel::newChannel(std::move(async_socket));
+	channel->setSecurityPolicy(THRIFT_SECURITY_DISABLED);
+	channel->setProtocolId(apache::thrift::protocol::T_BINARY_PROTOCOL);
+	channel->setReadBufferSize(kBufferSize);
+	return std::make_unique<StorageRpcAsyncClient>(std::move(channel));
 }
 
 template <typename Lambda>
